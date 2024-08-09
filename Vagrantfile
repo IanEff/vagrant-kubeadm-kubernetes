@@ -27,18 +27,19 @@ Vagrant.configure("2") do |config|
   config.vm.box_check_update = true
 
   config.vm.define "controlplane" do |controlplane|
-    controlplane.vm.hostname = "controlplane"
+    controlplane.vm.hostname = "#{settings["cluster_name"]}controlplane"
     controlplane.vm.network "private_network", ip: settings["network"]["control_ip"]
     if settings["shared_folders"]
       settings["shared_folders"].each do |shared_folder|
         controlplane.vm.synced_folder shared_folder["host_path"], shared_folder["vm_path"]
       end
     end
-    controlplane.vm.provider "virtualbox" do |vb|
+    controlplane.vm.provider "parallels" do |vb|
         vb.cpus = settings["nodes"]["control"]["cpu"]
         vb.memory = settings["nodes"]["control"]["memory"]
         if settings["cluster_name"] and settings["cluster_name"] != ""
-          vb.customize ["modifyvm", :id, "--groups", ("/" + settings["cluster_name"])]
+          # vb.customize ["modifyvm", :id, "--groups", ("/" + settings["cluster_name"])]
+          vb.name = "#{settings["cluster_name"]}-controlplane"
         end
     end
     controlplane.vm.provision "shell",
@@ -70,11 +71,18 @@ Vagrant.configure("2") do |config|
           node.vm.synced_folder shared_folder["host_path"], shared_folder["vm_path"]
         end
       end
-      node.vm.provider "virtualbox" do |vb|
+      node.vm.provider "parallels" do |vb|
           vb.cpus = settings["nodes"]["workers"]["cpu"]
           vb.memory = settings["nodes"]["workers"]["memory"]
           if settings["cluster_name"] and settings["cluster_name"] != ""
-            vb.customize ["modifyvm", :id, "--groups", ("/" + settings["cluster_name"])]
+            #vb.customize ["modifyvm", :id, "--groups", ("/" + settings["cluster_name"])]
+            vb.name = "#{settings["cluster_name"]}-node0#{i}"
+          end
+          if settings["nodes"]["workers"]["disks"] != ""
+            (0..settings["nodes"]["workers"]["disks"]-1).each do |j|
+              #vb.disk :disk, size: settings["nodes"]["workers"]["disk_size"], name: "node0#{i}-disk-#{j}"
+              vb.customize "post-import", ["set", :id, "--device-add", "hdd", "--size", settings["nodes"]["workers"]["disk_size"], "--position", j + 2]
+            end
           end
       end
       node.vm.provision "shell",
